@@ -1,9 +1,46 @@
-systemd (229-4ubuntu4+exo1) xenial; urgency=medium
+systemd (229-4ubuntu6+exo1) xenial; urgency=medium
 
   * Build systemd-sysusers binary, for using in rkt.
   * Disable tests.
 
  -- Vincent Bernat <bernat@debian.org>  Tue, 05 Jul 2016 09:14:08 +0200
+
+systemd (229-4ubuntu6) xenial-proposed; urgency=medium
+
+  * Add a DHCP exit hook for pushing received NTP servers into timesyncd.
+    (LP: #1578663)
+  * Revert "enable TasksMax= for all services by default, and set it to 512".
+    Introducing a default limit on number of threads broke a lot of software
+    which regularly needs more, such as MySQL and RabbitMQ, or services that
+    spawn off an indefinite number of subtasks that are not in a scope, like
+    LXC or cron. 512 is way too much for most "simple" services, and it's way
+    too little for the ones mentioned above. Effective (and much stricter)
+    limits should instead be put into units individually.
+    (Closes: #823530, LP: #1578080)
+  * debian/gbp.conf: Switch to ubuntu-xenial branch.
+
+ -- Martin Pitt <martin.pitt@ubuntu.com>  Thu, 12 May 2016 10:39:30 +0200
+
+systemd (229-4ubuntu5) xenial-proposed; urgency=medium
+
+  * debian/udev.postinst: Don't fail if /var/log/udev is a directory.
+    (LP: #1574004)
+  * Set MAC based name for USB network interfaces only for universally
+    administered (i. e. stable) MACs, not for locally administered (i. e.
+    randomly generated) ones. Drop /lib/systemd/network/90-mac-for-usb.link
+    (as link files don't currently support globs for MACAddress=) and replace
+    with an udev rule in /lib/udev/rules.d/73-special-net-names.rules.
+    (Closes: #812575, LP: #1574483)
+  * debian/extra/init-functions.d/40-systemd: Invoke status command with
+    --no-pager, to avoid blocking scripts that call an init.d script with
+    "status" with an unexpected pager process. (Closes: #765175, LP: #1576409)
+  * Add debian/extra/rules/70-debian-uaccess.rules: Make FIDO U2F dongles
+    accessible to the user session. This avoids having to install libu2f-host0
+    (which isn't discoverable at all) to make those devices work.
+    (LP: #1387908)
+  * On shutdown, unmount /tmp before disabling swap. (Closes: #788303)
+
+ -- Martin Pitt <martin.pitt@ubuntu.com>  Mon, 02 May 2016 15:04:42 -0500
 
 systemd (229-4ubuntu4) xenial; urgency=medium
 
@@ -21,7 +58,6 @@ systemd (229-4ubuntu3) xenial; urgency=medium
  -- Martin Pitt <martin.pitt@ubuntu.com>  Tue, 12 Apr 2016 10:43:34 +0200
 
 systemd (229-4ubuntu2) xenial; urgency=medium
-
   * debian/tests/unit-config: Call "daemon-reload" to clean up generated units
     in between tests.
   * debian/tests/unit-config: Check that enable/disable commands are
