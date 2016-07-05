@@ -1,3 +1,9 @@
+systemd (229-4ubuntu4+exo1) xenial; urgency=medium
+
+  * Build systemd-sysusers binary, for using in rkt.
+
+ -- Vincent Bernat <bernat@debian.org>  Tue, 05 Jul 2016 09:14:08 +0200
+
 systemd (229-4ubuntu4) xenial; urgency=medium
 
   * 73-special-net-names.rules: Further refine ibmveth naming.
