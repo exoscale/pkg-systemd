@@ -77,7 +77,7 @@ Replaces: udev (<< 228-5),
           systemd-services,
 Conflicts: klogd,
            systemd-services,
-Provides: systemd-services
+Provides: systemd-services, systemd-sysusers
 Description: system and service manager
  systemd is a system and service manager for Linux. It provides aggressive
  parallelization capabilities, uses socket and D-Bus activation for starting

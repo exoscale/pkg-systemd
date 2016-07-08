@@ -1,3 +1,9 @@
+systemd (229-4ubuntu6+exo2) xenial; urgency=medium
+
+  * Provides virtual package systemd-sysusers.
+
+ -- Vincent Bernat <bernat@debian.org>  Fri, 08 Jul 2016 15:16:49 +0200
+
 systemd (229-4ubuntu6+exo1) xenial; urgency=medium
 
   * Build systemd-sysusers binary, for using in rkt.
