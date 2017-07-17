@@ -1,0 +1,170 @@
+From 179339dbe7a6d46e824020b746145f72ddff851b Mon Sep 17 00:00:00 2001
+From: Vincent Bernat <vincent@bernat.im>
+Date: Mon, 17 Jul 2017 10:07:28 +0200
+Subject: [PATCH] core: add BindToVRF directive
+
+This directive is specific to Cumulus as it relies on the appropriate
+CGroup being set up. The cgroup is `/sys/fs/cgroup/l3mdev/VRF`.
+---
+ man/systemd.exec.xml                  | 17 +++++++++++++++++
+ src/core/dbus-execute.c               |  1 +
+ src/core/execute.c                    | 16 ++++++++++++++++
+ src/core/execute.h                    |  2 ++
+ src/core/load-fragment-gperf.gperf.m4 |  1 +
+ src/core/unit.c                       | 22 ++++++++++++++++++++++
+ src/shared/special.h                  |  3 +++
+ 7 files changed, 62 insertions(+)
+
+diff --git a/man/systemd.exec.xml b/man/systemd.exec.xml
+index cc5442d45cf1..47ac1d25ec6d 100644
+--- a/man/systemd.exec.xml
++++ b/man/systemd.exec.xml
+@@ -1348,6 +1348,23 @@
+                                 <citerefentry><refentrytitle>tmpfiles.d</refentrytitle><manvolnum>5</manvolnum></citerefentry>.</para></listitem>
+                         </varlistentry>
+ 
++                        <varlistentry>
++                                <term><varname>BindToVRF=</varname></term>
++
++                                <listitem><para>Takes a VRF name. If
++                                set, the process executed by the unit
++                                will be started in a the control group
++                                associated with the given VRF. If the
++                                control group doesn't exist, the unit
++                                will fail to start. An implicit
++                                requirement is added to
++                                <literal>networking.service</literal>
++                                and
++                                <literal>network-online.target</literal>
++                                units. This is specific to Cumulus
++                                Linux.</para></listitem>
++                        </varlistentry>
++
+                 </variablelist>
+         </refsect1>
+ 
+diff --git a/src/core/dbus-execute.c b/src/core/dbus-execute.c
+index ecbadd765b5b..52eb0c7c42fb 100644
+--- a/src/core/dbus-execute.c
++++ b/src/core/dbus-execute.c
+@@ -645,6 +645,7 @@ const sd_bus_vtable bus_exec_vtable[] = {
+         SD_BUS_PROPERTY("RestrictAddressFamilies", "(bas)", property_get_address_families, 0, SD_BUS_VTABLE_PROPERTY_CONST),
+         SD_BUS_PROPERTY("RuntimeDirectoryMode", "u", bus_property_get_mode, offsetof(ExecContext, runtime_directory_mode), SD_BUS_VTABLE_PROPERTY_CONST),
+         SD_BUS_PROPERTY("RuntimeDirectory", "as", NULL, offsetof(ExecContext, runtime_directory), SD_BUS_VTABLE_PROPERTY_CONST),
++        SD_BUS_PROPERTY("BindToVRF", "s", NULL, offsetof(ExecContext, vrf), SD_BUS_VTABLE_PROPERTY_CONST),
+         SD_BUS_VTABLE_END
+ };
+ 
+diff --git a/src/core/execute.c b/src/core/execute.c
+index 88d094e8cc49..b93b7c4103c1 100644
+--- a/src/core/execute.c
++++ b/src/core/execute.c
+@@ -1481,6 +1481,14 @@ int exec_spawn(ExecCommand *command,
+                 if (context->utmp_id)
+                         utmp_put_init_process(context->utmp_id, getpid(), getsid(0), context->tty_path);
+ 
++                if (context->vrf) {
++                        err = cg_attach("l3mdev", context->vrf, 0);
++                        if (err < 0) {
++                                r = EXIT_CGROUP;
++                                goto fail_child;
++                        }
++                }
++
+                 if (context->user) {
+                         username = context->user;
+                         err = get_user_creds(&username, &uid, &gid, &home, &shell);
+@@ -1914,6 +1922,9 @@ void exec_context_done(ExecContext *c) {
+ 
+         strv_free(c->runtime_directory);
+         c->runtime_directory = NULL;
++
++        free(c->vrf);
++        c->vrf = NULL;
+ }
+ 
+ int exec_context_destroy_runtime_directory(ExecContext *c, const char *runtime_prefix) {
+@@ -2305,6 +2316,11 @@ void exec_context_dump(ExecContext *c, FILE* f, const char *prefix) {
+                         "%sPersonality: %s\n",
+                         prefix, strna(personality_to_string(c->personality)));
+ 
++        if (c->vrf)
++                fprintf(f,
++                        "%sBindToVRF: %s\n",
++                        prefix, c->vrf);
++
+         if (c->syscall_filter) {
+ #ifdef HAVE_SECCOMP
+                 Iterator j;
+diff --git a/src/core/execute.h b/src/core/execute.h
+index 9d05d3a9dec9..74169a975add 100644
+--- a/src/core/execute.h
++++ b/src/core/execute.h
+@@ -182,6 +182,8 @@ struct ExecContext {
+         char **runtime_directory;
+         mode_t runtime_directory_mode;
+ 
++        char *vrf;
++
+         bool oom_score_adjust_set:1;
+         bool nice_set:1;
+         bool ioprio_set:1;
+diff --git a/src/core/load-fragment-gperf.gperf.m4 b/src/core/load-fragment-gperf.gperf.m4
+index a7c4469a4623..65be421b1320 100644
+--- a/src/core/load-fragment-gperf.gperf.m4
++++ b/src/core/load-fragment-gperf.gperf.m4
+@@ -86,6 +86,7 @@ $1.MountFlags,                   config_parse_exec_mount_flags,      0,
+ $1.Personality,                  config_parse_personality,           0,                             offsetof($1, exec_context.personality)
+ $1.RuntimeDirectoryMode,         config_parse_mode,                  0,                             offsetof($1, exec_context.runtime_directory_mode)
+ $1.RuntimeDirectory,             config_parse_runtime_directory,     0,                             offsetof($1, exec_context.runtime_directory)
++$1.BindToVRF,                    config_parse_unit_string_printf,    0,                             offsetof($1, exec_context.vrf)
+ m4_ifdef(`HAVE_PAM',
+ `$1.PAMName,                     config_parse_unit_string_printf,    0,                             offsetof($1, exec_context.pam_name)',
+ `$1.PAMName,                     config_parse_warn_compat,           0,                             0')
+diff --git a/src/core/unit.c b/src/core/unit.c
+index 0e4ebfde9bc3..1a7d4a2b3cba 100644
+--- a/src/core/unit.c
++++ b/src/core/unit.c
+@@ -724,6 +724,28 @@ int unit_add_exec_dependencies(Unit *u, ExecContext *c) {
+                         return r;
+         }
+ 
++        if (c->vrf) {
++                /* TODO: ideally, we could just do that. However,
++                 * while the device is present, the cgroup may not be
++                 * configured properly. We could configure it
++                 * ourselves, but we may run in a race condition
++                 * somewhere. It's just easier to wait for
++                 * networking.service to be ready. */
++#if 0
++                char *dep = strjoin("sys-subsystem-net-devices-", c->vrf, ".device", NULL);
++                r = unit_add_dependency_by_name(u, UNIT_AFTER, dep, NULL, true);
++                free(dep);
++                if (r < 0)
++                        return r;
++#endif
++                r = unit_add_dependency_by_name(u, UNIT_AFTER, SPECIAL_NETWORK_ONLINE_TARGET, NULL, true);
++                if (r < 0)
++                        return r;
++                r = unit_add_dependency_by_name(u, UNIT_AFTER, SPECIAL_NETWORKING_SERVICE, NULL, true);
++                if (r < 0)
++                        return r;
++        }
++
+         if (u->manager->running_as != SYSTEMD_SYSTEM)
+                 return 0;
+ 
+diff --git a/src/shared/special.h b/src/shared/special.h
+index 2fe5db55584c..c1deb434faab 100644
+--- a/src/shared/special.h
++++ b/src/shared/special.h
+@@ -120,3 +120,6 @@
+ #define SPECIAL_USER_SLICE "user.slice"
+ #define SPECIAL_MACHINE_SLICE "machine.slice"
+ #define SPECIAL_ROOT_SLICE "-.slice"
++
++/* Others */
++#define SPECIAL_NETWORKING_SERVICE "networking.service"
+-- 
+2.13.2
+

@@ -1,3 +1,9 @@
+systemd (215-17+deb8u7+exo1) jessie; urgency=medium
+
+  * Add a patch for BindToVRF= directive.
+
+ -- Vincent Bernat <bernat@debian.org>  Mon, 17 Jul 2017 10:12:01 +0200
+
 systemd (215-17+deb8u7) stable; urgency=medium
 
   * bus: Fix bus_print_property() to use "int" for booleans.
