@@ -1,0 +1,26 @@
+When running inside a VRF, this must start after network is present.
+We move the whole unit in multi-user.target.
+
+Index: systemd-215/units/systemd-timesyncd.service.in
+===================================================================
+--- systemd-215.orig/units/systemd-timesyncd.service.in
++++ systemd-215/units/systemd-timesyncd.service.in
+@@ -12,10 +12,9 @@ ConditionCapability=CAP_SYS_TIME
+ ConditionVirtualization=!container
+ DefaultDependencies=no
+ RequiresMountsFor=/var/lib/systemd/clock
+-After=systemd-remount-fs.service systemd-tmpfiles-setup.service systemd-sysusers.service
+-Before=time-sync.target sysinit.target shutdown.target
++After=network.target
++Before=shutdown.target
+ Conflicts=shutdown.target
+-Wants=time-sync.target
+ 
+ [Service]
+ Type=notify
+@@ -30,4 +29,4 @@ ProtectHome=yes
+ WatchdogSec=1min
+ 
+ [Install]
+-WantedBy=sysinit.target
++WantedBy=multi-user.target

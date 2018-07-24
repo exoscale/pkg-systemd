@@ -1,3 +1,11 @@
+systemd (215-17+deb8u7+exo2) jessie; urgency=medium
+
+  * Make systemd-timesyncd.service start late. When using VRF, it cannot
+    start early as it would start before VRF is configured. Make it start
+    like a regular service.
+
+ -- Vincent Bernat <bernat@debian.org>  Tue, 24 Jul 2018 13:16:45 +0200
+
 systemd (215-17+deb8u7+exo1) jessie; urgency=medium
 
   * Add a patch for BindToVRF= directive.
